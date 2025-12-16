@@ -1,0 +1,367 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Mini App Pack – Memory • Story • Expenses</title>
+  <style>
+    :root{
+      --bg:#f3faff; --bg2:#e9f5ff; --panel:#ffffff; --ink:#0f172a; --muted:#5b677a; --border:#d8e7f7;
+      --brand:#46b5ff; --brand-strong:#0ea5e9; --chip:#eef7ff; --accent:#a5e3ff; --good:#10b981; --bad:#ef4444; --warn:#fb923c;
+      --radius:22px; --shadow:0 10px 30px rgba(15,23,42,.08);
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{margin:0; color:var(--ink); background:linear-gradient(160deg,var(--bg),var(--bg2) 55%,var(--bg)); font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Noto Sans,Helvetica,Arial,"Apple Color Emoji","Segoe UI Emoji"; display:grid; place-items:start center; padding:28px 14px}
+
+    .app{width:min(980px,100%); background:var(--panel); border:1px solid var(--border); border-radius:var(--radius); box-shadow:var(--shadow); overflow:hidden}
+    header{display:flex; align-items:center; justify-content:space-between; gap:10px; padding:18px 22px 12px}
+    h1{margin:0; font-size:clamp(20px,3.5vw,32px)}
+    .tabs{display:flex; gap:8px; padding:0 22px 16px; flex-wrap:wrap}
+    .tab{border:1px solid var(--border); background:var(--chip); color:#075985; padding:10px 14px; border-radius:999px; cursor:pointer; font-weight:700; font-size:14px}
+    .tab[aria-selected="true"]{background:var(--brand); color:#fff; border-color:transparent; box-shadow:0 6px 16px rgba(14,165,233,.25)}
+
+    .panel{display:none; padding:22px}
+    .panel.active{display:block}
+
+    /* ---------- Memory Game ---------- */
+    .mg-top{display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:14px}
+    .pill{background:var(--chip); border:1px solid var(--border); border-radius:999px; padding:8px 12px; font-size:13px; color:#075985}
+    .btn{border:none; background:var(--brand); color:#fff; padding:10px 14px; border-radius:14px; font-weight:700; cursor:pointer; font-size:14px; box-shadow:0 6px 16px rgba(14,165,233,.25)}
+    .btn.ghost{background:#eef7ff; color:#0369a1; border:1px solid var(--border); box-shadow:none}
+    .grid{--s:4; display:grid; grid-template-columns:repeat(var(--s),1fr); gap:10px}
+    .card{position:relative; aspect-ratio:1; border-radius:16px; border:1px solid var(--border); background:#fbfdff; cursor:pointer; transform-style:preserve-3d; transition:transform .25s ease}
+    .card.flip{transform:rotateY(180deg)}
+    .face{position:absolute; inset:0; display:grid; place-items:center; font-size:34px; backface-visibility:hidden; border-radius:16px}
+    .front{background:#fbfdff}
+    .back{background:linear-gradient(145deg,#dff1ff,#f8fcff); transform:rotateY(180deg)}
+    .card.matched{outline:2px solid #86efac; background:#f0fdf4}
+
+    /* ---------- Story Game ---------- */
+    .story{display:grid; gap:14px}
+    .story h2{margin:0 0 6px}
+    .story .box{background:#fbfdff; border:1px solid var(--border); border-radius:18px; padding:16px}
+    .choices{display:grid; gap:8px}
+    .choice{border:1px solid var(--border); background:var(--chip); color:#075985; padding:10px 14px; border-radius:12px; cursor:pointer}
+    .badge{padding:3px 8px; border-radius:999px; font-size:12px; font-weight:700}
+    .inv{background:#e6fce9; color:#0f5132; border:1px solid #bbf7d0}
+
+    /* ---------- Expense Tracker ---------- */
+    .row{display:flex; gap:10px; flex-wrap:wrap}
+    input[type="text"], input[type="number"], select{background:#fbfdff; color:var(--ink); border:1px solid var(--border); border-radius:12px; padding:10px 12px; font-size:14px; outline:none}
+    table{width:100%; border-collapse:separate; border-spacing:0 8px; margin-top:14px}
+    th,td{padding:10px 12px; text-align:left}
+    tr{background:#fbfdff; border:1px solid var(--border)}
+    tr td:first-child, tr th:first-child{border-top-left-radius:12px; border-bottom-left-radius:12px}
+    tr td:last-child, tr th:last-child{border-top-right-radius:12px; border-bottom-right-radius:12px}
+    .sum{display:flex; gap:10px; flex-wrap:wrap; margin-top:10px}
+    .kpi{background:var(--chip); border:1px solid var(--border); border-radius:14px; padding:10px 14px; color:#075985; font-weight:700}
+    .del{border:none; background:#fff1f2; color:#b91c1c; border:1px solid #ffd5dd; padding:8px 10px; border-radius:10px; cursor:pointer}
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <title>Mini App Pack</title>
+    </header>
+    <nav class="tabs" role="tablist" aria-label="Select App">
+      <button class="tab" role="tab" aria-selected="true" data-target="#panel-memory">Memory Game</button>
+      <button class="tab" role="tab" aria-selected="false" data-target="#panel-story">Story Game</button>
+      <button class="tab" role="tab" aria-selected="false" data-target="#panel-expense">Expense Tracker</button>
+    </nav>
+
+    <!-- ========== Memory Game ========== -->
+    <section id="panel-memory" class="panel active" role="tabpanel" aria-labelledby="Memory Game">
+      <div class="mg-top">
+        <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap">
+          <span class="pill">Moves: <b id="mg-moves">0</b></span>
+          <span class="pill">Time: <b id="mg-time">0.0s</b></span>
+          <span class="pill">Best: <b id="mg-best">—</b></span>
+        </div>
+        <div style="display:flex; gap:8px">
+          <button class="btn ghost" id="mg-size">Grid 4×4</button>
+          <button class="btn" id="mg-restart">Restart</button>
+        </div>
+      </div>
+      <div id="mg-grid" class="grid" aria-live="polite"></div>
+    </section>
+
+    <!-- ========== Story Game ========== -->
+    <section id="panel-story" class="panel" role="tabpanel" aria-labelledby="Story Game">
+      <div class="story">
+        <div class="box"><h2 id="sg-title">Harbor Morning</h2>
+          <p id="sg-text">You wake to a calm, water‑blue sky by the harbor. A note reads: “Meet me where the gulls circle.”</p>
+          <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap">
+            <span class="pill">Path: <b id="sg-path">start</b></span>
+            <span class="badge inv" id="sg-inv" hidden>Ticket</span>
+          </div>
+        </div>
+        <div class="choices" id="sg-choices"></div>
+        <div style="display:flex; gap:8px">
+          <button class="btn" id="sg-restart">Restart Story</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========== Expense Tracker ========== -->
+    <section id="panel-expense" class="panel" role="tabpanel" aria-labelledby="Expense Tracker">
+      <div class="row" style="margin-bottom:10px">
+        <input id="ex-name" type="text" placeholder="Item (e.g., Latte)" />
+        <input id="ex-amount" type="number" step="0.01" placeholder="Amount (e.g., 4.50)" />
+        <select id="ex-cat">
+          <option>Food</option>
+          <option>Transport</option>
+          <option>Study</option>
+          <option>Fun</option>
+          <option>Other</option>
+        </select>
+        <button class="btn" id="ex-add">Add</button>
+        <button class="btn ghost" id="ex-clear">Clear All</button>
+      </div>
+      <div class="sum">
+        <div class="kpi">Total: <span id="ex-total">0</span></div>
+        <div class="kpi">Food: <span id="ex-food">0</span></div>
+        <div class="kpi">Transport: <span id="ex-transport">0</span></div>
+        <div class="kpi">Study: <span id="ex-study">0</span></div>
+        <div class="kpi">Fun: <span id="ex-fun">0</span></div>
+        <div class="kpi">Other: <span id="ex-other">0</span></div>
+      </div>
+      <table>
+        <thead>
+          <tr><th>Date</th><th>Item</th><th>Category</th><th>Amount</th><th></th></tr>
+        </thead>
+        <tbody id="ex-body"></tbody>
+      </table>
+    </section>
+  </div>
+
+  <script>
+    /* ---------------- Tabs ---------------- */
+    const tabs = document.querySelectorAll('.tab');
+    tabs.forEach(t=>t.addEventListener('click',()=>{
+      tabs.forEach(b=>b.setAttribute('aria-selected','false'));
+      t.setAttribute('aria-selected','true');
+      document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+      document.querySelector(t.dataset.target).classList.add('active');
+    }));
+
+    /* ---------------- Memory Game ---------------- */
+    const MG_STORE_KEY = 'mg-best-v1';
+    const mgGrid = document.getElementById('mg-grid');
+    const mgMoves = document.getElementById('mg-moves');
+    const mgTime = document.getElementById('mg-time');
+    const mgBest = document.getElementById('mg-best');
+    const mgRestart = document.getElementById('mg-restart');
+    const mgSizeBtn = document.getElementById('mg-size');
+
+    let mgSize = 4; // grid size (even)
+    let mgFirst = null, mgLock=false, mgPairs=0, mgMovesCount=0, mgStart=0, mgTimer=null;
+
+    function mgEmojis(count){
+      const pool = ['🐬','🐳','🐟','🪼','🐚','🌊','🐠','🦀','🐙','🪸','🦑','🦐','🛟','⚓','🚤','🌦️','🪽','🧊'];
+      return pool.slice(0,count);
+    }
+    function mgSetup(){
+      const pairs = (mgSize*mgSize)/2;
+      const set = mgEmojis(pairs);
+      const items = [...set, ...set].sort(()=>Math.random()-0.5);
+      mgGrid.style.setProperty('--s', mgSize);
+      mgGrid.innerHTML='';
+      items.forEach((emoji,i)=>{
+        const card=document.createElement('button');
+        card.className='card'; card.dataset.val=emoji; card.setAttribute('aria-label','card');
+        card.innerHTML=`<div class="face front"></div><div class="face back">${emoji}</div>`;
+        card.addEventListener('click',()=>mgFlip(card));
+        mgGrid.appendChild(card);
+      });
+      mgMovesCount=0; mgPairs=0; mgFirst=null; mgLock=false; mgMoves.textContent='0';
+      mgStart=performance.now();
+      if(mgTimer) cancelAnimationFrame(mgTimer);
+      const tick=()=>{ mgTime.textContent=((performance.now()-mgStart)/1000).toFixed(1)+"s"; mgTimer=requestAnimationFrame(tick); };
+      mgTimer=requestAnimationFrame(tick);
+    }
+    function mgFlip(card){
+      if(mgLock || card.classList.contains('flip') || card.classList.contains('matched')) return;
+      card.classList.add('flip');
+      if(!mgFirst){ mgFirst=card; return; }
+      mgMovesCount++; mgMoves.textContent=mgMovesCount;
+      if(card.dataset.val===mgFirst.dataset.val){
+        card.classList.add('matched'); mgFirst.classList.add('matched'); mgFirst=null; mgPairs++;
+        if(mgPairs===(mgSize*mgSize)/2){
+          cancelAnimationFrame(mgTimer);
+          const score = {moves: mgMovesCount, time: parseFloat(mgTime.textContent)};
+          const best = JSON.parse(localStorage.getItem(MG_STORE_KEY)||'null');
+          if(!best || score.time < best.time || (score.time===best.time && score.moves<best.moves)){
+            localStorage.setItem(MG_STORE_KEY, JSON.stringify(score));
+          }
+          const b = JSON.parse(localStorage.getItem(MG_STORE_KEY)||'null');
+          mgBest.textContent = b ? `${b.time.toFixed(1)}s / ${b.moves} moves` : '—';
+        }
+        return;
+      }
+      mgLock=true;
+      setTimeout(()=>{
+        card.classList.remove('flip');
+        mgFirst.classList.remove('flip');
+        mgFirst=null; mgLock=false;
+      }, 650);
+    }
+    mgRestart.addEventListener('click', mgSetup);
+    mgSizeBtn.addEventListener('click', ()=>{
+      mgSize = (mgSize===4?6:mgSize===6?4:4); // toggle 4<->6
+      mgSizeBtn.textContent = `Grid ${mgSize}×${mgSize}`;
+      mgSetup();
+    });
+    (function mgInit(){
+      const b = JSON.parse(localStorage.getItem(MG_STORE_KEY)||'null');
+      mgBest.textContent = b ? `${b.time.toFixed(1)}s / ${b.moves} moves` : '—';
+      mgSetup();
+    })();
+
+    /* ---------------- Story Game ---------------- */
+    const sgTitle = document.getElementById('sg-title');
+    const sgText = document.getElementById('sg-text');
+    const sgChoices = document.getElementById('sg-choices');
+    const sgPath = document.getElementById('sg-path');
+    const sgInv = document.getElementById('sg-inv');
+    const sgRestart = document.getElementById('sg-restart');
+
+    const story = {
+      start: {
+        title:'Harbor Morning',
+        text:'You wake to a calm, water‑blue sky by the harbor. A note reads: “Meet me where the gulls circle.”',
+        choices:[
+          {label:'Go to the pier', next:'pier'},
+          {label:'Check the café', next:'cafe'}
+        ]
+      },
+      pier: {
+        title:'Old Pier',
+        text:'At the pier, a fisherman offers a ferry ticket if you help coil a rope.',
+        choices:[
+          {label:'Help him', gain:'ticket', next:'ticket'},
+          {label:'Refuse and keep walking', next:'rocks'}
+        ]
+      },
+      ticket: {
+        title:'Ferry Ticket',
+        text:'You receive a small blue ticket with a silver anchor.',
+        choices:[
+          {label:'Take the ferry', need:'ticket', next:'isle'},
+          {label:'Stay on shore', next:'rocks'}
+        ]
+      },
+      cafe: {
+        title:'Harbor Café',
+        text:'The barista whispers: “Gulls circle at the lighthouse at dusk.”',
+        choices:[
+          {label:'Head to lighthouse', next:'light'},
+          {label:'Grab a croissant (why not)', next:'rocks'}
+        ]
+      },
+      rocks: {
+        title:'Rocky Shore',
+        text:'Waves glitter. You find a weathered compass pointing seaward.',
+        choices:[
+          {label:'Follow the compass', next:'ferry'},
+          {label:'Return to town', next:'start'}
+        ]
+      },
+      ferry: {
+        title:'Ferry Gate',
+        text:'A guard checks tickets. The sea breeze smells like salt and new beginnings.',
+        choices:[
+          {label:'Show ticket', need:'ticket', next:'isle'},
+          {label:'No ticket… go back', next:'pier'}
+        ]
+      },
+      light: {
+        title:'Lighthouse',
+        text:'Gulls circle above. A door creaks open, revealing a journal with your name.',
+        choices:[
+          {label:'Read the journal', next:'end-good'},
+          {label:'Leave it closed', next:'end-missed'}
+        ]
+      },
+      isle: {
+        title:'Blue Isle',
+        text:'Across the bay, a hidden cove mirrors the sky. Someone waves from a boat.',
+        choices:[
+          {label:'Wave back', next:'end-ally'},
+          {label:'Explore alone', next:'end-solitude'}
+        ]
+      },
+      'end-good': { title:'Dawn of Clarity', text:'The journal maps your next steps. You are exactly where you need to be.', choices:[] },
+      'end-missed': { title:'Missed Message', text:'You leave, wondering forever what the pages held.', choices:[] },
+      'end-ally': { title:'Found an Ally', text:'You meet at the cove and plan a new voyage together.', choices:[] },
+      'end-solitude': { title:'Quiet Solitude', text:'You chart your own path, steady and bright.', choices:[] },
+    };
+
+    let inv = new Set();
+    let node = 'start';
+    function sgRender(){
+      const n = story[node];
+      sgTitle.textContent = n.title;
+      sgText.textContent = n.text;
+      sgPath.textContent = node;
+      sgChoices.innerHTML='';
+      sgInv.hidden = !inv.has('ticket');
+      n.choices.forEach(c=>{
+        if(c.need && !inv.has(c.need)) return; // hide if missing requirement
+        const btn=document.createElement('button'); btn.className='choice'; btn.textContent=c.label;
+        btn.addEventListener('click',()=>{ if(c.gain) inv.add(c.gain); node=c.next; sgRender(); });
+        sgChoices.appendChild(btn);
+      });
+      if(n.choices.length===0){
+        const back = document.createElement('button'); back.className='btn'; back.textContent='Restart';
+        back.addEventListener('click', ()=>{ inv.clear(); node='start'; sgRender(); });
+        sgChoices.appendChild(back);
+      }
+    }
+    sgRestart.addEventListener('click', ()=>{ inv.clear(); node='start'; sgRender(); });
+    sgRender();
+
+    /* ---------------- Expense Tracker ---------------- */
+    const EX_KEY='expenses-v1';
+    const exName=document.getElementById('ex-name');
+    const exAmount=document.getElementById('ex-amount');
+    const exCat=document.getElementById('ex-cat');
+    const exAdd=document.getElementById('ex-add');
+    const exClear=document.getElementById('ex-clear');
+    const exBody=document.getElementById('ex-body');
+    const exTotals={total:document.getElementById('ex-total'), Food:document.getElementById('ex-food'), Transport:document.getElementById('ex-transport'), Study:document.getElementById('ex-study'), Fun:document.getElementById('ex-fun'), Other:document.getElementById('ex-other')};
+
+    let expenses = loadEx();
+    renderEx();
+
+    exAdd.addEventListener('click', ()=>{
+      const name = exName.value.trim();
+      const amt = parseFloat(exAmount.value);
+      const cat = exCat.value;
+      if(!name || isNaN(amt) || amt<=0) return;
+      expenses.unshift({id:crypto.randomUUID(), name, amount:amt, category:cat, date:Date.now()});
+      saveEx();
+      exName.value=''; exAmount.value='';
+      renderEx();
+    });
+    exClear.addEventListener('click', ()=>{ expenses=[]; saveEx(); renderEx(); });
+
+    function renderEx(){
+      exBody.innerHTML='';
+      const sums={Total:0, Food:0, Transport:0, Study:0, Fun:0, Other:0};
+      expenses.forEach(e=>{
+        sums.Total+=e.amount; sums[e.category]+=e.amount;
+        const tr=document.createElement('tr');
+        tr.innerHTML=`<td>${new Date(e.date).toLocaleDateString()}</td><td>${e.name}</td><td>${e.category}</td><td>$${e.amount.toFixed(2)}</td>`;
+        const td=document.createElement('td');
+        const del=document.createElement('button'); del.className='del'; del.textContent='Delete'; del.addEventListener('click',()=>{ expenses=expenses.filter(x=>x.id!==e.id); saveEx(); renderEx(); });
+        td.appendChild(del); tr.appendChild(td); exBody.appendChild(tr);
+      });
+      exTotals.total.textContent = `$${sums.Total.toFixed(2)}`;
+      ['Food','Transport','Study','Fun','Other'].forEach(k=> exTotals[k.toLowerCase()].textContent = `$${sums[k].toFixed(2)}` );
+    }
+    function saveEx(){ localStorage.setItem(EX_KEY, JSON.stringify(expenses)); }
+    function loadEx(){ try{ const raw=localStorage.getItem(EX_KEY); return raw?JSON.parse(raw):[] } catch{ return [] } }
+  </script>
+</body>
